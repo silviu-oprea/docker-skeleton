@@ -1,0 +1,49 @@
+version: "3"
+services:
+  service_mongo:
+    image: mongo:3.0.2
+    networks:
+      - web
+
+  service_webapp:
+    build: app
+    ports:
+    - 5000:5000
+    environment:
+    - SERVICE_PORTS=5000
+    depends_on:
+    - service_mongo
+    deploy:
+      replicas: 5
+      update_config:
+        parallelism: 5
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - web
+    volumes:
+    - ./app:/app
+    restart: always
+
+  service_proxy:
+    image: dockercloud/haproxy
+    depends_on:
+    - service_webapp
+    environment:
+    - BALANCE=leastconn
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+    - 80:80
+    networks:
+    - web
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+networks:
+  web:
+    driver: overlay
